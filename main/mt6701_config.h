@@ -2,10 +2,11 @@
 #define MT6701_CONFIG_H
 
 // I2C Configuration for XIAO ESP32-C3
-#define I2C_MASTER_SCL_IO      9       // SCL pin on XIAO ESP32-C3
-#define I2C_MASTER_SDA_IO      8       // SDA pin on XIAO ESP32-C3
+// SDA = D4 (GPIO6), SCL = D5 (GPIO7)
+#define I2C_MASTER_SCL_IO      7       // SCL pin (D5 / GPIO7)
+#define I2C_MASTER_SDA_IO      6       // SDA pin (D4 / GPIO6)
 #define I2C_MASTER_NUM         I2C_NUM_0
-#define I2C_MASTER_FREQ_HZ     400000  // 400kHz I2C frequency
+#define I2C_MASTER_FREQ_HZ     4000  // 400kHz I2C frequency
 #define I2C_MASTER_TX_BUF_DISABLE 0
 #define I2C_MASTER_RX_BUF_DISABLE 0
 
