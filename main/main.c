@@ -30,7 +30,7 @@ esp_err_t i2c_master_init(void)
 }
 
 // Read 14-bit angle data from MT6701
-esp_err_t mt6701_read_angle(float *angle_degrees)
+esp_err_t mt6701_read_angle(float *angle_degrees, uint16_t *raw_out)
 {
     uint8_t data[2];
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -59,6 +59,9 @@ esp_err_t mt6701_read_angle(float *angle_degrees)
         
         // Convert to degrees (14-bit = 16384 steps, 360 degrees)
         *angle_degrees = (float)raw_angle * 360.0f / 16384.0f;
+        if (raw_out) {
+            *raw_out = raw_angle;
+        }
         
         #if DEBUG_ENABLED
         ESP_LOGD(TAG, "Raw data: 0x%02X%02X, Raw angle: %d, Degrees: %.2f", 
@@ -73,16 +76,40 @@ esp_err_t mt6701_read_angle(float *angle_degrees)
 void mt6701_task(void *pvParameters)
 {
     float angle_degrees = 0.0f;
+    uint16_t raw_angle = 0;
     esp_err_t ret;
+    // Unwrap electrical angle and compute mechanical angle for P=4
+    static float previous_angle_deg = 0.0f;
+    static int32_t wrap_count = 0;
     
     ESP_LOGI(TAG, "Starting MT6701 angle reading task");
     
     while (1) {
-        ret = mt6701_read_angle(&angle_degrees);
+        ret = mt6701_read_angle(&angle_degrees, &raw_angle);
         
         if (ret == ESP_OK) {
-            printf("Angle: %.2f degrees (%.2f radians)\n", 
-                   angle_degrees, angle_degrees * M_PI / 180.0f);
+            // Detect wraps of electrical angle
+            float delta = angle_degrees - previous_angle_deg;
+            if (delta > 180.0f) {
+                wrap_count--; // crossed 360 -> 0
+            } else if (delta < -180.0f) {
+                wrap_count++; // crossed 0 -> 360
+            }
+            previous_angle_deg = angle_degrees;
+
+            // Unwrapped electrical angle and mechanical scaling by measured pole pairs
+            const float pole_pairs = 4.0f; // determined from observation
+            float unwrapped_electrical_deg = angle_degrees + (float)wrap_count * 360.0f;
+            float mechanical_deg = unwrapped_electrical_deg / pole_pairs;
+            // Normalize mechanical angle to [0, 360)
+            if (mechanical_deg < 0.0f) {
+                mechanical_deg += 360.0f * ceilf(-mechanical_deg / 360.0f);
+            } else if (mechanical_deg >= 360.0f) {
+                mechanical_deg = fmodf(mechanical_deg, 360.0f);
+            }
+
+            printf("Raw: %u | Elec: %.2f deg | Mech: %.2f deg | %.2f rad\n",
+                   (unsigned)raw_angle, angle_degrees, mechanical_deg, mechanical_deg * M_PI / 180.0f);
         } else {
             ESP_LOGE(TAG, "Failed to read angle from MT6701: %s", esp_err_to_name(ret));
         }

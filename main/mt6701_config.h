@@ -6,7 +6,7 @@
 #define I2C_MASTER_SCL_IO      7       // SCL pin (D5 / GPIO7)
 #define I2C_MASTER_SDA_IO      6       // SDA pin (D4 / GPIO6)
 #define I2C_MASTER_NUM         I2C_NUM_0
-#define I2C_MASTER_FREQ_HZ     4000  // 400kHz I2C frequency
+#define I2C_MASTER_FREQ_HZ     400000  // 400kHz I2C frequency
 #define I2C_MASTER_TX_BUF_DISABLE 0
 #define I2C_MASTER_RX_BUF_DISABLE 0
 
