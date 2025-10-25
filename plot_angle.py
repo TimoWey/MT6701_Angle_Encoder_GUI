@@ -1,38 +1,21 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 import serial
 import serial.tools.list_ports
 import threading
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import numpy as np
-import re
-import csv
-from datetime import datetime
-import time
+import datetime
 
 class ESP32SerialReader:
     def __init__(self, root):
         self.root = root
-        self.root.title("ESP32-C3 Angle Encoder Monitor")
+        self.root.title("ESP32-C3 Serial Monitor")
 
         self.serial_connection = None
         self.running = False
-        
-        # Data storage for plotting
-        self.time_data = []
-        self.angle_data = []
-        self.max_points = 1000  # Maximum points to keep in memory
-        
+
         # --- GUI Layout ---
-        # Create main container
-        main_container = ttk.Frame(root)
-        main_container.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Control frame
-        control_frame = ttk.Frame(main_container)
-        control_frame.pack(fill="x", pady=(0, 10))
+        frame = ttk.Frame(root, padding=10)
+        frame.pack(fill="both", expand=True)
 
         # Port selection
         ttk.Label(frame, text="Serial Port:").grid(row=0, column=0, sticky="w")
@@ -99,7 +82,9 @@ class ESP32SerialReader:
             try:
                 line = self.serial_connection.readline().decode(errors="ignore")
                 if line:
-                    self.log(line)
+                    # HH:mm:ss.sss format
+                    timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                    self.log(f"{timestamp}, {line}")
             except Exception as e:
                 self.log(f"Error: {e}\n")
                 break

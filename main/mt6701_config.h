@@ -13,7 +13,7 @@
 // MT6701 Configuration
 #define MT6701_I2C_ADDR        0x06    // Default I2C address
 #define MT6701_ANGLE_REG       0x03    // 14-bit angle register
-#define MT6701_READ_TIMEOUT_MS 1000    // I2C read timeout
+#define MT6701_READ_TIMEOUT_MS 250    // I2C read timeout
 
 // Update settings
 #define ENCODER_UPDATE_MS      100     // Update frequency in milliseconds

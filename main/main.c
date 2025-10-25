@@ -86,6 +86,7 @@ void mt6701_task(void *pvParameters)
     
     while (1) {
         ret = mt6701_read_angle(&angle_degrees, &raw_angle);
+        uint32_t timestamp = xTaskGetTickCount();
         
         if (ret == ESP_OK) {
             // Detect wraps of electrical angle
@@ -108,8 +109,9 @@ void mt6701_task(void *pvParameters)
                 mechanical_deg = fmodf(mechanical_deg, 360.0f);
             }
 
-            printf("Raw: %u | Elec: %.2f deg | Mech: %.2f deg | %.2f rad\n",
-                   (unsigned)raw_angle, angle_degrees, mechanical_deg, mechanical_deg * M_PI / 180.0f);
+            // printf("Raw: %u | Elec: %.2f deg | Mech: %.2f deg | %.2f rad\n",
+            //        (unsigned)raw_angle, angle_degrees, mechanical_deg, mechanical_deg * M_PI / 180.0f);
+            printf("%ld, %f\n", (long)timestamp, mechanical_deg);
         } else {
             ESP_LOGE(TAG, "Failed to read angle from MT6701: %s", esp_err_to_name(ret));
         }
