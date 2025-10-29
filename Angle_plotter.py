@@ -1,8 +1,11 @@
 import dearpygui.dearpygui as dpg
 import serial
 import serial.tools.list_ports
+from collections import deque
 
 serial_connection = None
+angle_data = deque(maxlen=100)
+time_data = deque(maxlen=100)
 
 def main():
     global serial_connection
@@ -27,14 +30,19 @@ def main():
     """
     Console window
     """
-    with dpg.window(label="Console", height=600, width=400, pos=(0, 200)):
-        dpg.add_child_window(tag="console_window", width=-1, height=565, autosize_x=True, horizontal_scrollbar=False)
+    with dpg.window(label="Console", height=599, width=400, pos=(0, 201)):
+        dpg.add_child_window(tag="console_window", width=-1, height=564, autosize_x=True, horizontal_scrollbar=False)
 
     """
     Plot window
     """
-    with dpg.window(label="Plot", height=600, width=400, pos=(400, 0)):
-        pass
+    with dpg.window(label="Plot", height=800, width=782, pos=(401, 0)):
+        with dpg.plot(label="Angle Plot", height=765, width=755):
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_axis")
+            dpg.add_plot_axis(dpg.mvYAxis, label="Angle", tag="y_axis")
+            #dpg.set_axis_limits(dpg.last_item(), -10, 370)
+            dpg.add_line_series(list(time_data), list(angle_data), label="Angle", parent="y_axis", tag="angle_series")
+            dpg.add_plot_legend()
     
     """
     Main loop
@@ -45,9 +53,18 @@ def main():
             if serial_connection.in_waiting:
                 raw = serial_connection.readline()
                 read_line = raw.decode('utf-8', errors='replace').rstrip("\r\n")
+                print(read_line)
                 if read_line:
                     dpg.add_text(read_line, parent="console_window")
                     dpg.set_y_scroll("console_window", dpg.get_y_scroll_max("console_window"))
+                    try:
+                        angle_data.append(float(read_line.split(",")[1]))
+                        time_data.append(float(read_line.split(",")[0]))
+                    except Exception as e:
+                        print(e)
+                        continue
+                    #dpg.set_axis_limits("x_axis", min(time_data), max(time_data))
+                    dpg.set_value("angle_series", [list(time_data), list(angle_data)])
         dpg.render_dearpygui_frame()
 
     dpg.destroy_context()
