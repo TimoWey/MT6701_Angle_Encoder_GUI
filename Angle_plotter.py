@@ -4,8 +4,10 @@ import serial.tools.list_ports
 from collections import deque
 
 serial_connection = None
-angle_data = deque(maxlen=100)
-time_data = deque(maxlen=100)
+angle_data = deque(maxlen=2000)
+time_data = deque(maxlen=2000)
+angle_derivative_data = deque(maxlen=2000)
+angle_offset = 0
 
 def main():
     global serial_connection
@@ -30,7 +32,11 @@ def main():
         # Follow newest toggle
         dpg.add_text("Plot Settings:")
         dpg.add_checkbox(label="Follow newest", tag="follow_newest_toggle", default_value=True)
-        dpg.add_slider_int(label="Data points", tag="data_points_slider", min_value=10, max_value=10000, default_value=1000, callback=data_points_slider_callback)
+        dpg.add_slider_int(label="Data points", tag="data_points_slider", min_value=100, max_value=10000, default_value=2000, callback=data_points_slider_callback)
+
+        # Angle Offset slider for zeroing the angle
+        dpg.add_text("Angle Offset:")
+        dpg.add_button(label="Zero Angle", callback=zero_angle_button_callback)
 
     """
     Console window
@@ -47,6 +53,11 @@ def main():
             dpg.add_plot_axis(dpg.mvYAxis, label="Angle", tag="y_axis")
             dpg.set_axis_limits(dpg.last_item(), -10, 370)
             dpg.add_line_series(list(time_data), list(angle_data), label="Angle", parent="y_axis", tag="angle_series")
+
+            dpg.add_plot_axis(dpg.mvYAxis, label="dAngle/dt", tag="y_axis_deriv", no_tick_labels=False)
+            dpg.set_axis_limits_auto("y_axis_deriv")
+            dpg.add_line_series(list(time_data), list(angle_derivative_data), label="dAngle/dt", parent="y_axis_deriv", tag="deriv_series")
+
             dpg.add_plot_legend()
     
     """
@@ -63,8 +74,14 @@ def main():
                     dpg.add_text(read_line, parent="console_window")
                     dpg.set_y_scroll("console_window", dpg.get_y_scroll_max("console_window"))
                     try:
-                        angle_data.append(float(read_line.split(",")[1]))
+                        angle_data.append((float(read_line.split(",")[1]) - angle_offset) % 360)
                         time_data.append(float(read_line.split(",")[0]))
+                        prev_angle = angle_data[-2] if len(angle_data) > 1 else angle_data[-1]
+                        prev_time = time_data[-2] if len(time_data) > 1 else time_data[-1]
+                        dt = time_data[-1] - prev_time if time_data[-1] != prev_time else 1e-6
+                        d_angle = (angle_data[-1] - prev_angle) / dt
+                        angle_derivative_data.append(d_angle)
+                        dpg.set_value("deriv_series", [list(time_data), list(angle_derivative_data)])   
                     except Exception as e:
                         print(e)
                         continue
@@ -96,10 +113,18 @@ def connection_button_callback():
         print("Disconnecting from serial port")
 
 def data_points_slider_callback():
-    global angle_data, time_data
+    global angle_data, time_data, angle_derivative_data
     data_points = dpg.get_value("data_points_slider")
     angle_data = deque(maxlen=data_points)
     time_data = deque(maxlen=data_points)
+    angle_derivative_data = deque(maxlen=data_points)
+
+def zero_angle_button_callback():
+    global angle_offset
+    raw = serial_connection.readline()
+    read_line = raw.decode('utf-8', errors='replace').rstrip("\r\n")
+    angle_offset = float(read_line.split(",")[1])
+    print(f"Angle offset set to {angle_offset}")
 
 if __name__ == "__main__":
     main()
