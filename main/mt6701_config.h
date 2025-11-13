@@ -15,6 +15,16 @@
 #define MT6701_ANGLE_REG       0x03    // 14-bit angle register
 #define MT6701_READ_TIMEOUT_MS 2000    // I2C read timeout
 
+// INA3221 Configuration
+#define INA3221_I2C_ADDR        0x40    // Default I2C address
+#define INA3221_CURRENT_REG     0x00    // Current register
+#define INA3221_VOLTAGE_REG     0x01    // Voltage register
+#define INA3221_POWER_REG       0x02    // Power register
+#define INA3221_READ_TIMEOUT_MS 2000    // I2C read timeout
+
+#define INA3221_SHUNT_VOLTAGE_CH1  0x01 
+#define SHUNT_RESISTOR_OHMS        0.1f  // 100mOhm
+
 // Update settings
 #define ENCODER_UPDATE_MS      10      // Update frequency in milliseconds
 #define SERIAL_BAUD_RATE       115200  // Serial monitor baud rate

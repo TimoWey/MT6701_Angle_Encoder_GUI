@@ -120,10 +120,91 @@ void mt6701_task(void *pvParameters)
     }
 }
 
+// Function to read current from INA3221
+float ina3221_read_current(uint8_t channel)
+{
+    uint8_t reg = INA3221_SHUNT_VOLTAGE_CH1 + (channel - 1) * 2;
+    uint8_t data[2];
+    int16_t raw;
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (INA3221_I2C_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (INA3221_I2C_ADDR << 1) | I2C_MASTER_READ, true);
+    i2c_master_read_byte(cmd, &data[0], I2C_MASTER_ACK);
+    i2c_master_read_byte(cmd, &data[1], I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 100 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+
+    if (ret != ESP_OK) {
+        return NAN;
+    }
+
+    raw = ((int16_t)data[0] << 8) | data[1];
+    float shunt_voltage = (float)raw * 40e-6f; // 40 µV per LSB per datasheet
+    float current = shunt_voltage / SHUNT_RESISTOR_OHMS;
+
+    return current;
+}
+
+// Task for reading INA3221
+void ina3221_task(void *pvParameters)
+{
+    float current = 0.0f;
+    esp_err_t ret;  
+    while (1) {
+
+        uint32_t timestamp_current = xTaskGetTickCount();
+        for (uint8_t channel = 1; channel <= 3; channel++) {
+            ret = ina3221_read_current(channel);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to read current from INA3221: %s", esp_err_to_name(ret));
+                continue;
+            }
+            current = ina3221_read_current(channel);
+            printf("%ld, %d, %f\n", (long)timestamp_current, channel, current);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void sensor_task(void *pvParameters)
+{
+    float angle_deg = 0.0f;
+    uint16_t raw_angle = 0;
+    float current_ch1 = 0.0f;
+    float current_ch2 = 0.0f;
+
+    while (1) {
+        uint32_t timestamp = xTaskGetTickCount();
+
+        // Read angle
+        esp_err_t ret = mt6701_read_angle(&angle_deg, &raw_angle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to read angle: %s", esp_err_to_name(ret));
+            angle_deg = NAN;
+        }
+
+        // Read current channels 1 and 2
+        current_ch1 = ina3221_read_current(1);
+        current_ch2 = ina3221_read_current(2);
+
+        // Print timestamp, angle, and currents
+        printf("%lu, %.3f, %.6f, %.6f\n", 
+               (unsigned long)timestamp, angle_deg, current_ch1, current_ch2);
+
+        vTaskDelay(pdMS_TO_TICKS(ENCODER_UPDATE_MS));
+    }
+}
+
+
 void app_main(void)
 {
-    ESP_LOGI(TAG, "MT6701 Angle Encoder Reader Starting...");
-    
+    ESP_LOGI(TAG, "MT6701 + INA3221 Reader Starting...");
+
     // Initialize I2C
     esp_err_t ret = i2c_master_init();
     if (ret != ESP_OK) {
@@ -131,16 +212,9 @@ void app_main(void)
         return;
     }
     ESP_LOGI(TAG, "I2C initialized successfully");
-    
-    // Print configuration
-    ESP_LOGI(TAG, "Configuration:");
-    ESP_LOGI(TAG, "  SCL Pin: %d", I2C_MASTER_SCL_IO);
-    ESP_LOGI(TAG, "  SDA Pin: %d", I2C_MASTER_SDA_IO);
-    ESP_LOGI(TAG, "  I2C Address: 0x%02X", MT6701_I2C_ADDR);
-    ESP_LOGI(TAG, "  Update Rate: %d ms", ENCODER_UPDATE_MS);
-    
-    // Create task for reading angle
-    xTaskCreate(mt6701_task, "mt6701_task", 4096, NULL, 5, NULL);
-    
-    ESP_LOGI(TAG, "Application started. Check serial output for angle readings.");
+
+    // Start combined task
+    xTaskCreate(sensor_task, "sensor_task", 4096, NULL, 5, NULL);
+
+    ESP_LOGI(TAG, "Application started. Output: timestamp, angle [deg], ch1 [A], ch2 [A]");
 }
