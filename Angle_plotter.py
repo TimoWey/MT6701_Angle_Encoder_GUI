@@ -7,6 +7,8 @@ serial_connection = None
 angle_data = deque(maxlen=2000)
 time_data = deque(maxlen=2000)
 angle_derivative_data = deque(maxlen=2000)
+current_ch1_data = deque(maxlen=2000)
+current_ch2_data = deque(maxlen=2000)
 angle_offset = 0
 
 def main():
@@ -47,16 +49,32 @@ def main():
     """
     Plot window
     """
-    with dpg.window(label="Plot", height=800, width=782, pos=(401, 0)):
-        with dpg.plot(label="Angle Plot", height=765, width=755):
-            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_axis")
-            dpg.add_plot_axis(dpg.mvYAxis, label="Angle", tag="y_axis")
-            dpg.set_axis_limits(dpg.last_item(), -10, 370)
-            dpg.add_line_series(list(time_data), list(angle_data), label="Angle", parent="y_axis", tag="angle_series")
+    with dpg.window(label="Plots", height=800, width=782, pos=(401, 0)):
+        # Angle plot
+        with dpg.plot(label="Angle (deg)", height=200, width=755):
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_angle")
+            dpg.add_plot_axis(dpg.mvYAxis, label="Angle", tag="y_angle")
+            dpg.add_line_series([], [], label="Angle", parent="y_angle", tag="angle_series")
 
-            dpg.add_plot_axis(dpg.mvYAxis, label="dAngle/dt", tag="y_axis_deriv", no_tick_labels=False)
-            dpg.set_axis_limits_auto("y_axis_deriv")
-            dpg.add_line_series(list(time_data), list(angle_derivative_data), label="dAngle/dt", parent="y_axis_deriv", tag="deriv_series")
+        # dAngle/dt plot
+        with dpg.plot(label="Angle Derivative", height=200, width=755):
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_dangle")
+            dpg.add_plot_axis(dpg.mvYAxis, label="dAngle/dt", tag="y_dangle")
+            dpg.add_line_series([], [], label="dAngle/dt", parent="y_dangle", tag="deriv_series")
+
+        # Channel 1
+        with dpg.plot(label="Channel 1 Current", height=200, width=755):
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_ch1")
+            dpg.add_plot_axis(dpg.mvYAxis, label="Current (A)", tag="y_ch1")
+            dpg.add_line_series([], [], label="Ch1", parent="y_ch1", tag="ch1_series")
+
+        # Channel 2
+        with dpg.plot(label="Channel 2 Current", height=200, width=755):
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_ch2")
+            dpg.add_plot_axis(dpg.mvYAxis, label="Current (A)", tag="y_ch2")
+            dpg.add_line_series([], [], label="Ch2", parent="y_ch2", tag="ch2_series")
+
+            
 
             dpg.add_plot_legend()
     
@@ -74,8 +92,14 @@ def main():
                     dpg.add_text(read_line, parent="console_window")
                     dpg.set_y_scroll("console_window", dpg.get_y_scroll_max("console_window"))
                     try:
-                        angle_data.append((float(read_line.split(",")[1]) - angle_offset) % 360)
+                        # Decode the serial data
                         time_data.append(float(read_line.split(",")[0]))
+                        angle_data.append((float(read_line.split(",")[1]) - angle_offset) % 360)
+                        current_ch1_data.append(float(read_line.split(",")[2]))
+                        current_ch2_data.append(float(read_line.split(",")[3]))
+                        dpg.set_value("ch1_series", [list(time_data), list(current_ch1_data)])
+                        dpg.set_value("ch2_series", [list(time_data), list(current_ch2_data)])
+                        
                         prev_angle = angle_data[-2] if len(angle_data) > 1 else angle_data[-1]
                         prev_time = time_data[-2] if len(time_data) > 1 else time_data[-1]
                         dt = time_data[-1] - prev_time if time_data[-1] != prev_time else 1e-6
@@ -89,10 +113,18 @@ def main():
                     # If follow newest is enabled, set the x-axis limits to the min and max of the time data
                     follow_toggle = dpg.get_value("follow_newest_toggle")
                     if follow_toggle:
-                        dpg.set_axis_limits("x_axis", min(time_data), max(time_data))
-                    else:   # If follow newest is disabled, set the x-axis limits to auto
-                        dpg.set_axis_limits_auto("x_axis")
-                        dpg.set_axis_limits_auto("y_axis")
+                        if time_data:
+                            min_time = min(time_data)
+                            max_time = max(time_data)
+                            if min_time == max_time:
+                                max_time += 1e-3
+                            for axis_tag in ("x_angle", "x_dangle", "x_ch1", "x_ch2"):
+                                dpg.set_axis_limits(axis_tag, min_time, max_time)
+                    else:   # If follow newest is disabled, set the axis limits to auto
+                        for axis_tag in ("x_angle", "x_dangle", "x_ch1", "x_ch2"):
+                            dpg.set_axis_limits_auto(axis_tag)
+                        for axis_tag in ("y_angle", "y_dangle", "y_ch1", "y_ch2"):
+                            dpg.set_axis_limits_auto(axis_tag)
 
                     dpg.set_value("angle_series", [list(time_data), list(angle_data)])
         dpg.render_dearpygui_frame()
