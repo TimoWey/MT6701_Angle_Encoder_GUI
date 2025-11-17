@@ -26,7 +26,7 @@
 #define SHUNT_RESISTOR_OHMS        0.1f  // 100mOhm
 
 // Update settings
-#define ENCODER_UPDATE_MS      10      // Update frequency in milliseconds
+#define ENCODER_UPDATE_MS      0      // Update frequency in milliseconds
 #define SERIAL_BAUD_RATE       115200  // Serial monitor baud rate
 
 // Debug settings

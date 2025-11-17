@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 import serial
 import serial.tools.list_ports
 from collections import deque
+import math
 
 serial_connection = None
 angle_data = deque(maxlen=2000)
@@ -9,7 +10,10 @@ time_data = deque(maxlen=2000)
 angle_derivative_data = deque(maxlen=2000)
 current_ch1_data = deque(maxlen=2000)
 current_ch2_data = deque(maxlen=2000)
+raw_current_ch1_data = deque(maxlen=2000)  # Store raw values for RMS calculation
+raw_current_ch2_data = deque(maxlen=2000)  # Store raw values for RMS calculation
 angle_offset = 0
+rms_window_size = 100  # Number of samples for RMS calculation
 
 def main():
     global serial_connection
@@ -63,16 +67,16 @@ def main():
             dpg.add_line_series([], [], label="dAngle/dt", parent="y_dangle", tag="deriv_series")
 
         # Channel 1
-        with dpg.plot(label="Channel 1 Current", height=200, width=755):
+        with dpg.plot(label="Channel 1 Current RMS", height=200, width=755):
             dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_ch1")
-            dpg.add_plot_axis(dpg.mvYAxis, label="Current (A)", tag="y_ch1")
-            dpg.add_line_series([], [], label="Ch1", parent="y_ch1", tag="ch1_series")
+            dpg.add_plot_axis(dpg.mvYAxis, label="RMS Current (A)", tag="y_ch1")
+            dpg.add_line_series([], [], label="Ch1 RMS", parent="y_ch1", tag="ch1_series")
 
         # Channel 2
-        with dpg.plot(label="Channel 2 Current", height=200, width=755):
+        with dpg.plot(label="Channel 2 Current RMS", height=200, width=755):
             dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_ch2")
-            dpg.add_plot_axis(dpg.mvYAxis, label="Current (A)", tag="y_ch2")
-            dpg.add_line_series([], [], label="Ch2", parent="y_ch2", tag="ch2_series")
+            dpg.add_plot_axis(dpg.mvYAxis, label="RMS Current (A)", tag="y_ch2")
+            dpg.add_line_series([], [], label="Ch2 RMS", parent="y_ch2", tag="ch2_series")
 
             
 
@@ -95,8 +99,22 @@ def main():
                         # Decode the serial data
                         time_data.append(float(read_line.split(",")[0]))
                         angle_data.append((float(read_line.split(",")[1]) - angle_offset) % 360)
-                        current_ch1_data.append(float(read_line.split(",")[2]))
-                        current_ch2_data.append(float(read_line.split(",")[3]))
+                        raw_ch1 = float(read_line.split(",")[2])
+                        raw_ch2 = float(read_line.split(",")[3])
+                        
+                        # Store raw current values
+                        raw_current_ch1_data.append(raw_ch1)
+                        raw_current_ch2_data.append(raw_ch2)
+                        
+                        # Calculate RMS current over the window
+                        rms_ch1 = calculate_rms(raw_current_ch1_data, rms_window_size)
+                        rms_ch2 = calculate_rms(raw_current_ch2_data, rms_window_size)
+
+                        print(f"RMS Ch1: {rms_ch1}, RMS Ch2: {rms_ch2}")
+                        
+                        current_ch1_data.append(rms_ch1)
+                        current_ch2_data.append(rms_ch2)
+                        
                         dpg.set_value("ch1_series", [list(time_data), list(current_ch1_data)])
                         dpg.set_value("ch2_series", [list(time_data), list(current_ch2_data)])
                         
@@ -145,11 +163,33 @@ def connection_button_callback():
         print("Disconnecting from serial port")
 
 def data_points_slider_callback():
-    global angle_data, time_data, angle_derivative_data
+    global angle_data, time_data, angle_derivative_data, current_ch1_data, current_ch2_data, raw_current_ch1_data, raw_current_ch2_data
     data_points = dpg.get_value("data_points_slider")
     angle_data = deque(maxlen=data_points)
     time_data = deque(maxlen=data_points)
     angle_derivative_data = deque(maxlen=data_points)
+    current_ch1_data = deque(maxlen=data_points)
+    current_ch2_data = deque(maxlen=data_points)
+    raw_current_ch1_data = deque(maxlen=data_points)
+    raw_current_ch2_data = deque(maxlen=data_points)
+
+def calculate_rms(data_deque, window_size):
+    """Calculate RMS (Root Mean Square) over the last window_size samples"""
+    if len(data_deque) == 0:
+        return 0.0
+    
+    # Use the last min(window_size, len(data_deque)) samples
+    samples = list(data_deque)[-window_size:]
+    
+    if len(samples) == 0:
+        return 0.0
+    
+    # Calculate RMS: sqrt(mean(squared values))
+    sum_squares = sum(x * x for x in samples)
+    mean_square = sum_squares / len(samples)
+    rms = math.sqrt(mean_square)
+    
+    return rms
 
 def zero_angle_button_callback():
     global angle_offset

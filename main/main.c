@@ -182,11 +182,11 @@ void sensor_task(void *pvParameters)
         uint32_t timestamp = xTaskGetTickCount();
 
         // Read angle
-        esp_err_t ret = mt6701_read_angle(&angle_deg, &raw_angle);
+        /*esp_err_t ret = mt6701_read_angle(&angle_deg, &raw_angle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to read angle: %s", esp_err_to_name(ret));
             angle_deg = NAN;
-        }
+        }*/
 
         // Read current channels 1 and 2
         current_ch1 = ina3221_read_current(1);
