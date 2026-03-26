@@ -1,21 +1,25 @@
 #ifndef MT6701_CONFIG_H
 #define MT6701_CONFIG_H
 
+#include <stdbool.h>
+
 // I2C Configuration for XIAO ESP32-C3
 // SDA = D4 (GPIO6), SCL = D5 (GPIO7)
 #define I2C_MASTER_SCL_IO      7       // SCL pin (D5 / GPIO7)
 #define I2C_MASTER_SDA_IO      6       // SDA pin (D4 / GPIO6)
 #define I2C_MASTER_NUM         I2C_NUM_0
-#define I2C_MASTER_FREQ_HZ     400000  // 400kHz I2C frequency
+#define I2C_MASTER_FREQ_HZ     40000  // 400kHz I2C frequency
 #define I2C_MASTER_TX_BUF_DISABLE 0
 #define I2C_MASTER_RX_BUF_DISABLE 0
 
 // MT6701 Configuration
-#define MT6701_I2C_ADDR        0x06    // Default I2C address
-#define MT6701_ANGLE_REG       0x03    // 14-bit angle register
-#define MT6701_READ_TIMEOUT_MS 2000    // I2C read timeout
+#define ENABLE_MT6701           true    // true = enabled, false = disabled
+#define MT6701_I2C_ADDR         0x06    // Default I2C address
+#define MT6701_ANGLE_REG        0x03    // 14-bit angle register
+#define MT6701_READ_TIMEOUT_MS  2000    // I2C read timeout
 
 // INA3221 Configuration
+#define ENABLE_INA3221          false    // true = enabled, false = disabled
 #define INA3221_I2C_ADDR        0x40    // Default I2C address
 #define INA3221_CURRENT_REG     0x00    // Current register
 #define INA3221_VOLTAGE_REG     0x01    // Voltage register

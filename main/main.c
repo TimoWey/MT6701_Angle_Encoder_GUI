@@ -30,6 +30,7 @@ esp_err_t i2c_master_init(void)
 }
 
 // Read 14-bit angle data from MT6701
+#if ENABLE_MT6701
 esp_err_t mt6701_read_angle(float *angle_degrees, uint16_t *raw_out)
 {
     uint8_t data[2];
@@ -71,8 +72,10 @@ esp_err_t mt6701_read_angle(float *angle_degrees, uint16_t *raw_out)
     
     return ret;
 }
+#endif
 
 // Main task to continuously read and display angle
+#if ENABLE_MT6701
 void mt6701_task(void *pvParameters)
 {
     float angle_degrees = 0.0f;
@@ -119,8 +122,10 @@ void mt6701_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(ENCODER_UPDATE_MS));
     }
 }
+#endif
 
 // Function to read current from INA3221
+#if ENABLE_INA3221
 float ina3221_read_current(uint8_t channel)
 {
     uint8_t reg = INA3221_SHUNT_VOLTAGE_CH1 + (channel - 1) * 2;
@@ -149,8 +154,10 @@ float ina3221_read_current(uint8_t channel)
 
     return current;
 }
+#endif
 
 // Task for reading INA3221
+#if ENABLE_INA3221
 void ina3221_task(void *pvParameters)
 {
     float current = 0.0f;
@@ -170,31 +177,45 @@ void ina3221_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+#endif
 
 void sensor_task(void *pvParameters)
 {
+    #if ENABLE_MT6701
     float angle_deg = 0.0f;
     uint16_t raw_angle = 0;
+    #endif
+    #if ENABLE_INA3221
     float current_ch1 = 0.0f;
     float current_ch2 = 0.0f;
+    #endif
 
     while (1) {
         uint32_t timestamp = xTaskGetTickCount();
 
-        // Read angle
-        /*esp_err_t ret = mt6701_read_angle(&angle_deg, &raw_angle);
+        #if ENABLE_MT6701
+        esp_err_t ret = mt6701_read_angle(&angle_deg, &raw_angle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to read angle: %s", esp_err_to_name(ret));
             angle_deg = NAN;
-        }*/
+        }
+        #endif
 
-        // Read current channels 1 and 2
+        #if ENABLE_INA3221
         current_ch1 = ina3221_read_current(1);
         current_ch2 = ina3221_read_current(2);
+        #endif
 
-        // Print timestamp, angle, and currents
-        printf("%lu, %.3f, %.6f, %.6f\n", 
+        #if ENABLE_MT6701 && ENABLE_INA3221
+        printf("%lu, %.3f, %.6f, %.6f\n",
                (unsigned long)timestamp, angle_deg, current_ch1, current_ch2);
+        #elif ENABLE_MT6701
+        printf("%lu, %.3f\n", (unsigned long)timestamp, angle_deg);
+        #elif ENABLE_INA3221
+        printf("%lu, %.6f, %.6f\n", (unsigned long)timestamp, current_ch1, current_ch2);
+        #else
+        ESP_LOGW(TAG, "Both sensors are disabled. Enable at least one sensor in mt6701_config.h");
+        #endif
 
         vTaskDelay(pdMS_TO_TICKS(ENCODER_UPDATE_MS));
     }
@@ -203,7 +224,7 @@ void sensor_task(void *pvParameters)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "MT6701 + INA3221 Reader Starting...");
+    ESP_LOGI(TAG, "Sensor reader starting...");
 
     // Initialize I2C
     esp_err_t ret = i2c_master_init();
@@ -213,8 +234,17 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "I2C initialized successfully");
 
-    // Start combined task
+    #if ENABLE_MT6701 || ENABLE_INA3221
     xTaskCreate(sensor_task, "sensor_task", 4096, NULL, 5, NULL);
+    #endif
 
+    #if ENABLE_MT6701 && ENABLE_INA3221
     ESP_LOGI(TAG, "Application started. Output: timestamp, angle [deg], ch1 [A], ch2 [A]");
+    #elif ENABLE_MT6701
+    ESP_LOGI(TAG, "Application started. Output: timestamp, angle [deg]");
+    #elif ENABLE_INA3221
+    ESP_LOGI(TAG, "Application started. Output: timestamp, ch1 [A], ch2 [A]");
+    #else
+    ESP_LOGW(TAG, "No sensor task started. Both sensors are disabled in mt6701_config.h");
+    #endif
 }
